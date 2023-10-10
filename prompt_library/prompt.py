@@ -1,34 +1,67 @@
-import gradio as gr
-
+from flask import Flask, render_template, request, jsonify
+import pinecone
+import os
 import openai
+from dotenv import load_dotenv
 
-# set up your API key in environment
+load_dotenv()
+app = Flask(__name__)
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+def generate_embedding(prompt):
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    prompt_vector = openai.Embedding.create(
+        input=prompt,
+        model="text-embedding-ada-002"
+    )["data"][0]["embedding"]
+    return prompt_vector
 
-def get_gpt4_feedback(query):
-    # Use the OpenAI API to get a response from the model
-    response = openai.Completion.create(
-        engine="gpt-4",  # You may need to adjust this for GPT-4 if it's different
-        prompt=query,
-        max_tokens=150  # Limit the response to 150 tokens
-    )
+@app.route("/")
+def hello_world():
+    return render_template('home.html')
 
-    return response.choices[0].text.strip()  # Extracting the text from the API's response
 
-# This function will be linked to the Gradio UI
-def prompt_generator(user_query):
-    feedback = get_gpt4_feedback(user_query)
-    return feedback
+@app.route("/search-results", methods=["POST"])
+def search_results():
+    user_prompt = request.form.get('user_prompt')
+    prompttype = request.form.get('prompttype')
+    domain = request.form.get('domain')
+    print(prompttype, domain)
+    print(user_prompt)
+    if user_prompt:
+        pinecone.init(api_key=os.getenv("PINECONE_API_KEY"), environment="gcp-starter")
+        index = pinecone.Index(index_name="prompt-library")
+        embedding = generate_embedding(user_prompt)
+        response = index.query(
+            vector=embedding,
+            #filter={"prompttype": prompttype, "domain": domain}, 
+            top_k=2,
+            include_metadata=True
+        )
+        if response:
+            id_values = [item['id'] for item in response['matches']]
+            return {'id_values': id_values}
+        else:
+            response = "No matching response found."
+            return {'error': response}
+            
+    
+@app.route("/add-prompt", methods=["POST"])
+def add_prompt():
+    prompt = request.form.get('prompt')
+    prompttype = request.form.get('prompttype')
+    domain = request.form.get('domain')
+    if prompt:
+        embedding = generate_embedding(prompt)
 
-# Define Gradio interface
-iface = gr.Interface(
-    fn=prompt_generator,  # function to call
-    inputs="text",  # input type
-    outputs="text",  # output type
-    live=True,  # update output while typing (set to False if using actual GPT-4 to save on API calls)
-    title="Prompt Generator with GPT-4 Assistance",
-    description="Enter your initial query or requirement to get feedback from GPT-4.",
-)
-
-iface.launch()
+        pinecone.init(api_key=os.environ["PINECONE_API_KEY"], environment="gcp-starter")
+        index = pinecone.Index(index_name="prompt-library")
+        metadata = {"prompttype": prompttype, "domain": domain}
+        pinecone_vector = (prompt, embedding, metadata)
+        upsert_count = index.upsert(vectors=[pinecone_vector])['upserted_count']
+        index_stats = index.describe_index_stats()
+        response = f"Your prompt has been added! Total prompt count {index_stats['total_vector_count']}"
+        if upsert_count:
+            return jsonify({"response": response})
+    else:
+        return jsonify({"response": "Please provide a user prompt."})
+    
