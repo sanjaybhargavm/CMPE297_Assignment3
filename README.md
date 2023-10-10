@@ -15,5 +15,5 @@ medium article
 demo:
 
 c) Write a full web app for prompt library with prompt search (use pinecone langchain library) - people can contribute the prompts nad search for prompts
-
+install flask and pinecone, place the api keys in env file rand run the app(prompt_library has the required code)
 
