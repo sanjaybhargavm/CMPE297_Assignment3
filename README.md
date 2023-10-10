@@ -13,7 +13,7 @@ colab: https://colab.research.google.com/drive/1CFYmxxpckjT4o2nivZ2giY0tkqySM_vV
 
 medium article : https://medium.com/@sanjaybhargav.madamanchi/creating-a-prompt-generation-chatbot-using-gpt-4-459ac3d97674
 
-demo:
+demo: https://youtu.be/yWuV5FUXUs4
 
 c) Write a full web app for prompt library with prompt search (use pinecone langchain library) - people can contribute the prompts nad search for prompts
  
